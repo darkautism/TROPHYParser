@@ -1,12 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Text;
 using System.Xml;
 
-namespace TROPHYParser {
-    class TROPCONF {
+namespace TROPHYParser
+{
+    public class TROPCONF {
         long startByte = 0x40;
         string path;
         string trophyconf_version;

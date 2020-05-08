@@ -15,7 +15,10 @@ namespace TROPHYParser
         public string parental_level;
         public string title_name;
         public string title_detail;
+        private bool _hasplat;
         public List<Trophy> trophys;
+
+        public bool HasPlatinium { get => _hasplat; }
         public int Count {
             get {
                 return trophys.Count;
@@ -70,12 +73,14 @@ namespace TROPHYParser
                     trophy.Attributes["ttype"].Value,
                     int.Parse(trophy.Attributes["pid"].Value),
                     trophy["name"].InnerText,
-                    trophy["detail"].InnerText
+                    trophy["detail"].InnerText,
+                    int.Parse(trophy.Attributes["gid"]?.Value ?? "0")
                     );
 
 
                 trophys.Add(item);
             }
+            _hasplat = trophys[0].ttype.Equals("P");
 
 
             TROPCONFReader.Close();
@@ -103,13 +108,16 @@ namespace TROPHYParser
             public int pid;
             public string name;
             public string detail;
-            public Trophy(int id, string hidden, string ttype, int pid, string name, string detail) {
+            public int gid;
+            public Trophy(int id, string hidden, string ttype, int pid, string name, string detail, int gid) {
                 this.id = id;
                 this.hidden = hidden;
                 this.ttype = ttype;
                 this.pid = pid;
                 this.name = name;
                 this.detail = detail;
+                this.gid = gid;
+
             }
             public override string ToString() {
                 StringBuilder sb = new StringBuilder();

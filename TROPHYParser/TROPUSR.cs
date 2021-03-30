@@ -474,6 +474,8 @@ namespace TROPHYParser
             /// int
             public int SyncState;
 
+            public bool IsSync => (SyncState == 0x100100) || (SyncState == 0x100);
+
             /// int
             public int unknow2;
 

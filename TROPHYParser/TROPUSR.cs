@@ -184,7 +184,7 @@ namespace TROPHYParser
             trophyListInfo.AchievementRate[id / 32] |= (uint)(1 << id).ChangeEndian();
             AchievementRate[id / 32] |= (uint)(1 << id);
             tti.IsGet = true;
-            tti.SyncState = 0x100000; //  0x100100 表示已同步
+            tti.SyncState = (int)TropSyncState.NotSync; //  0x100100 表示已同步
             trophyTimeInfoTable[id] = tti;
             if (dt > trophyListInfo.ListLastGetTrophyTime) {
                 trophyListInfo.ListLastGetTrophyTime = dt;
@@ -474,7 +474,7 @@ namespace TROPHYParser
             /// int
             public int SyncState;
 
-            public bool IsSync => (SyncState == 0x100100) || (SyncState == 0x100);
+            public bool IsSync => (SyncState & (int)TropSyncState.Sync) == (int)TropSyncState.Sync;
 
             /// int
             public int unknow2;

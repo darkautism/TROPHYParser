@@ -21,6 +21,38 @@ namespace TROPHYParser
         uint[] AchievementRate = new uint[4];
         UnknowType7 unknowType7;
 
+        public DateTime LastSyncTime
+        {
+            get
+            {
+                DateTime aux = new DateTime(2008, 1, 1);
+                foreach (TrophyTimeInfo tropInfo in trophyTimeInfoTable)
+                {
+                    if (tropInfo.IsSync && DateTime.Compare(tropInfo.Time, aux) > 0)
+                    {
+                        aux = tropInfo.Time;
+                    }
+                }
+                return aux;
+            }
+        }
+
+        public DateTime LastTrophyTime
+        {
+            get
+            {
+                DateTime aux = new DateTime(2008, 1, 1);
+                foreach (TrophyTimeInfo tropInfo in trophyTimeInfoTable)
+                {
+                    if (DateTime.Compare(tropInfo.Time, aux) > 0)
+                    {
+                        aux = tropInfo.Time;
+                    }
+                }
+                return aux;
+            }
+        }
+
         public TROPUSR(string path_in)
         {
             this.path = path_in;

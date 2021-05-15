@@ -19,6 +19,38 @@ namespace TROPHYParser
         int AllSyncPSNTrophyCount;
         TrophyInitTime trophyInitTime;
 
+        public DateTime LastSyncTime
+        {
+            get
+            {
+                DateTime aux = new DateTime(2008, 1, 1);
+                foreach (TrophyInfo tropInfo in trophyInfoTable)
+                {
+                    if (tropInfo.IsSync && DateTime.Compare(tropInfo.Time, aux) > 0)
+                    {
+                        aux = tropInfo.Time;
+                    }
+                }
+                return aux;
+            }
+        }
+
+        public DateTime LastTrophyTime
+        {
+            get
+            {
+                DateTime aux = new DateTime(2008, 1, 1);
+                foreach (TrophyInfo tropInfo in trophyInfoTable)
+                {
+                    if (DateTime.Compare(tropInfo.Time, aux) > 0)
+                    {
+                        aux = tropInfo.Time;
+                    }
+                }
+                return aux;
+            }
+        }
+
         public TROPTRNS(string path_in)
         {
 

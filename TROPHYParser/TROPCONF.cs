@@ -6,7 +6,8 @@ using System.Xml;
 
 namespace TROPHYParser
 {
-    public class TROPCONF {
+    public class TROPCONF
+    {
         long startByte = 0x40;
         string path;
         string trophyconf_version;
@@ -19,17 +20,22 @@ namespace TROPHYParser
         public List<Trophy> trophys;
 
         public bool HasPlatinium { get => _hasplat; }
-        public int Count {
-            get {
+        public int Count
+        {
+            get
+            {
                 return trophys.Count;
             }
         }
-        public Trophy this[int index] {
-            get {
+        public Trophy this[int index]
+        {
+            get
+            {
                 return trophys[index];
             }
         }
-        public TROPCONF(string path) {
+        public TROPCONF(string path)
+        {
             this.path = path;
             FileStream TROPCONFReader = null;
             if (path == null)
@@ -41,9 +47,12 @@ namespace TROPHYParser
             if (!File.Exists(path + "TROPCONF.SFM"))
                 throw new Exception("Cannot find TROPCONF.SFM.");
 
-            try {
+            try
+            {
                 TROPCONFReader = new FileStream(path + "TROPCONF.SFM", FileMode.Open);
-            } catch (IOException) {
+            }
+            catch (IOException)
+            {
                 throw new Exception("Cannot Open TROPCONF.SFM.");
             }
 
@@ -66,7 +75,8 @@ namespace TROPHYParser
             // Trophys
             XmlNodeList trophysXML = xmldoc.GetElementsByTagName("trophy");
             trophys = new List<Trophy>();
-            foreach (XmlNode trophy in trophysXML) {
+            foreach (XmlNode trophy in trophysXML)
+            {
                 Trophy item = new Trophy(
                     int.Parse(trophy.Attributes["id"].Value),
                     trophy.Attributes["hidden"].Value,
@@ -86,7 +96,8 @@ namespace TROPHYParser
             TROPCONFReader.Close();
         }
 
-        public void PrintState() {
+        public void PrintState()
+        {
             Console.WriteLine(trophyconf_version);
             Console.WriteLine(npcommid);
             Console.WriteLine(trophyset_version);
@@ -94,11 +105,13 @@ namespace TROPHYParser
             Console.WriteLine(title_name);
             Console.WriteLine(title_detail);
 
-            foreach (Trophy t in trophys) {
+            foreach (Trophy t in trophys)
+            {
                 Console.WriteLine(t);
             }
         }
-        public struct Trophy {
+        public struct Trophy
+        {
             public int id;
             public string hidden;
             /// <summary>
@@ -109,7 +122,8 @@ namespace TROPHYParser
             public string name;
             public string detail;
             public int gid;
-            public Trophy(int id, string hidden, string ttype, int pid, string name, string detail, int gid) {
+            public Trophy(int id, string hidden, string ttype, int pid, string name, string detail, int gid)
+            {
                 this.id = id;
                 this.hidden = hidden;
                 this.ttype = ttype;
@@ -119,7 +133,8 @@ namespace TROPHYParser
                 this.gid = gid;
 
             }
-            public override string ToString() {
+            public override string ToString()
+            {
                 StringBuilder sb = new StringBuilder();
                 sb.Append("[").Append(id).Append(",");
                 sb.Append(hidden).Append(",");

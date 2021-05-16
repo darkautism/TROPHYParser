@@ -8,7 +8,9 @@ namespace TROPHYParser
 {
     public class TROPCONF
     {
-        long startByte = 0x40;
+        private const string TROPCONF_FILE_NAME = "TROPCONF.SFM";
+
+        int startByte = 0x40;
         string path;
         string trophyconf_version;
         public string npcommid;
@@ -36,36 +38,24 @@ namespace TROPHYParser
         }
         public TROPCONF(string path)
         {
-            this.path = path;
-            FileStream TROPCONFReader = null;
-            if (path == null)
+            if (path == null || path.Trim() == string.Empty)
                 throw new Exception("Path cannot be null!");
 
-            if (!path.EndsWith(@"\"))
-                path += @"\";
+            string fileName = Path.Combine(path, TROPCONF_FILE_NAME);
 
-            if (!File.Exists(path + "TROPCONF.SFM"))
-                throw new Exception("Cannot find TROPCONF.SFM.");
+            if (!File.Exists(fileName))
+                throw new FileNotFoundException("File not found", TROPCONF_FILE_NAME);
 
-            try
-            {
-                TROPCONFReader = new FileStream(path + "TROPCONF.SFM", FileMode.Open);
-            }
-            catch (IOException)
-            {
-                throw new Exception("Cannot Open TROPCONF.SFM.");
-            }
+            this.path = path;
 
-            TROPCONFReader.Position = startByte;
-            byte[] data = new byte[TROPCONFReader.Length];
-            TROPCONFReader.Read(data, 0, (int)TROPCONFReader.Length);
-            string xml = Encoding.UTF8.GetString(data).Trim('\0');
+            byte[] data = File.ReadAllBytes(fileName);
+            data = data.SubArray(startByte, data.Length - startByte);
+
             XmlDocument xmldoc = new XmlDocument();
-            xmldoc.LoadXml(xml);
-            XmlElement root = xmldoc.DocumentElement;
+            xmldoc.LoadXml(Encoding.UTF8.GetString(data).Trim('\0'));
 
             // Fixed Data
-            trophyconf_version = root.Attributes["version"].Value;
+            trophyconf_version = xmldoc.DocumentElement.Attributes["version"].Value;
             npcommid = xmldoc.GetElementsByTagName("npcommid")[0].InnerText;
             trophyset_version = xmldoc.GetElementsByTagName("trophyset-version")[0].InnerText;
             parental_level = xmldoc.GetElementsByTagName("parental-level")[0].InnerText;
@@ -91,9 +81,6 @@ namespace TROPHYParser
                 trophys.Add(item);
             }
             _hasplat = trophys[0].ttype.Equals("P");
-
-
-            TROPCONFReader.Close();
         }
 
         public void PrintState()

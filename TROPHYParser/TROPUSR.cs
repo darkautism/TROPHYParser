@@ -8,6 +8,8 @@ namespace TROPHYParser
 {
     public class TROPUSR
     {
+        private const string TROPUSR_FILE_NAME = "TROPUSR.DAT";
+
         string path;
         Header header;
         Dictionary<int, TypeRecord> typeRecordTable;
@@ -53,98 +55,88 @@ namespace TROPHYParser
             }
         }
 
-        public TROPUSR(string path_in)
+        public TROPUSR(string path)
         {
-            this.path = path_in;
-            BigEndianBinaryReader TROPUSRReader = null;
-
-            if (path == null)
+            if (path == null || path.Trim() == string.Empty)
                 throw new Exception("Path cannot be null!");
 
-            if (!path.EndsWith(@"\"))
-                path += @"\";
+            string fileName = Path.Combine(path, TROPUSR_FILE_NAME);
 
-            if (!File.Exists(path + "TROPUSR.DAT"))
-                throw new Exception("Cannot find TROPUSR.DAT.");
+            if (!File.Exists(fileName))
+                throw new FileNotFoundException("File not found", fileName);
 
-            try
+            this.path = path;
+
+            using (var fileStream = new FileStream(fileName, FileMode.Open))
+            using (var TROPUSRReader = new BigEndianBinaryReader(fileStream))
             {
-                TROPUSRReader = new BigEndianBinaryReader(new FileStream(path + "TROPUSR.DAT", FileMode.Open));
-            }
-            catch (IOException)
-            {
-                throw new Exception("Cannot Open TROPUSR.DAT.");
-            }
+                header = TROPUSRReader.ReadBytes(Marshal.SizeOf(typeof(Header))).ToStruct<Header>();
+                if (header.Magic != 0x0000000100ad548f81)
+                    throw new InvalidTrophyFileException(TROPUSR_FILE_NAME);
 
-            header = TROPUSRReader.ReadBytes(Marshal.SizeOf(typeof(Header))).ToStruct<Header>();
-            if (header.Magic != 0x0000000100ad548f81)
-                throw new Exception("Not a vaild TROPUSR.DAT.");
-
-
-
-            typeRecordTable = new Dictionary<int, TypeRecord>();
-            for (int i = 0; i < header.UnknowCount; i++)
-            {
-                TypeRecord TypeRecordTmp = TROPUSRReader.ReadBytes(Marshal.SizeOf(typeof(TypeRecord))).ToStruct<TypeRecord>();
-                typeRecordTable.Add(TypeRecordTmp.ID, TypeRecordTmp);
-            }
-
-            do
-            {
-                // 1 unknow 2 account_id 3 trophy_id and hash(?) 4 trophy info
-                // 
-                int type = TROPUSRReader.ReadInt32();
-                int blocksize = TROPUSRReader.ReadInt32();
-                int sequenceNumber = TROPUSRReader.ReadInt32(); // if have more than same type block, it will be used
-                int unknow = TROPUSRReader.ReadInt32();
-                byte[] blockdata = TROPUSRReader.ReadBytes(blocksize);
-                switch (type)
+                typeRecordTable = new Dictionary<int, TypeRecord>();
+                for (int i = 0; i < header.UnknowCount; i++)
                 {
-                    case 1: // unknow
-                        break;
-                    case 2:
-                        account_id = Encoding.UTF8.GetString(blockdata, 16, 16);
-                        break;
-                    case 3:
-                        trophy_id = Encoding.UTF8.GetString(blockdata, 0, 16).Trim('\0');
-                        short u1 = BitConverter.ToInt16(blockdata, 16).ChangeEndian();
-                        short u2 = BitConverter.ToInt16(blockdata, 18).ChangeEndian();
-                        short u3 = BitConverter.ToInt16(blockdata, 20).ChangeEndian();
-                        short u4 = BitConverter.ToInt16(blockdata, 22).ChangeEndian();
-                        all_trophy_number = BitConverter.ToInt32(blockdata, 24).ChangeEndian();
-                        int u5 = BitConverter.ToInt32(blockdata, 28).ChangeEndian();
-                        AchievementRate[0] = BitConverter.ToUInt32(blockdata, 64);
-                        AchievementRate[1] = BitConverter.ToUInt32(blockdata, 68);
-                        AchievementRate[2] = BitConverter.ToUInt32(blockdata, 72);
-                        AchievementRate[3] = BitConverter.ToUInt32(blockdata, 76);
-                        break;
-                    case 4:
-                        trophyTypeTable.Add(blockdata.ToStruct<TrophyType>());
-                        break;
-                    case 5:
-                        trophyListInfo = blockdata.ToStruct<TrophyListInfo>();
-                        break;
-                    case 6:
-                        trophyTimeInfoTable.Add(blockdata.ToStruct<TrophyTimeInfo>());
-                        break;
-                    case 7:// unknow
-                        unknowType7 = blockdata.ToStruct<UnknowType7>();
-                        // Console.WriteLine("Unsupported block type. (Type{0})", type);
-                        break;
-                    case 8: // hash
-                        unknowHash = blockdata.SubArray(0, 20);
-                        break;
-                    case 9: // 通常寫著白金獎盃的一些數字，不明
-                        // Console.WriteLine("Unsupported block type. (Type{0})", type);
-                        break;
-                    case 10: // i think it just a padding
-                        break;
+                    TypeRecord TypeRecordTmp = TROPUSRReader.ReadBytes(Marshal.SizeOf(typeof(TypeRecord))).ToStruct<TypeRecord>();
+                    typeRecordTable.Add(TypeRecordTmp.ID, TypeRecordTmp);
                 }
 
-            } while (TROPUSRReader.BaseStream.Position < TROPUSRReader.BaseStream.Length);
+                do
+                {
+                    // 1 unknow 2 account_id 3 trophy_id and hash(?) 4 trophy info
+                    // 
+                    int type = TROPUSRReader.ReadInt32();
+                    int blocksize = TROPUSRReader.ReadInt32();
+                    int sequenceNumber = TROPUSRReader.ReadInt32(); // if have more than same type block, it will be used
+                    int unknow = TROPUSRReader.ReadInt32();
+                    byte[] blockdata = TROPUSRReader.ReadBytes(blocksize);
+                    switch (type)
+                    {
+                        case 1: // unknow
+                            break;
+                        case 2:
+                            account_id = Encoding.UTF8.GetString(blockdata, 16, 16);
+                            break;
+                        case 3:
+                            trophy_id = Encoding.UTF8.GetString(blockdata, 0, 16).Trim('\0');
+                            short u1 = BitConverter.ToInt16(blockdata, 16).ChangeEndian();
+                            short u2 = BitConverter.ToInt16(blockdata, 18).ChangeEndian();
+                            short u3 = BitConverter.ToInt16(blockdata, 20).ChangeEndian();
+                            short u4 = BitConverter.ToInt16(blockdata, 22).ChangeEndian();
+                            all_trophy_number = BitConverter.ToInt32(blockdata, 24).ChangeEndian();
+                            int u5 = BitConverter.ToInt32(blockdata, 28).ChangeEndian();
+                            AchievementRate[0] = BitConverter.ToUInt32(blockdata, 64);
+                            AchievementRate[1] = BitConverter.ToUInt32(blockdata, 68);
+                            AchievementRate[2] = BitConverter.ToUInt32(blockdata, 72);
+                            AchievementRate[3] = BitConverter.ToUInt32(blockdata, 76);
+                            break;
+                        case 4:
+                            trophyTypeTable.Add(blockdata.ToStruct<TrophyType>());
+                            break;
+                        case 5:
+                            trophyListInfo = blockdata.ToStruct<TrophyListInfo>();
+                            break;
+                        case 6:
+                            trophyTimeInfoTable.Add(blockdata.ToStruct<TrophyTimeInfo>());
+                            break;
+                        case 7:// unknow
+                            unknowType7 = blockdata.ToStruct<UnknowType7>();
+                            // Console.WriteLine("Unsupported block type. (Type{0})", type);
+                            break;
+                        case 8: // hash
+                            unknowHash = blockdata.SubArray(0, 20);
+                            break;
+                        case 9: // 通常寫著白金獎盃的一些數字，不明
+                                // Console.WriteLine("Unsupported block type. (Type{0})", type);
+                            break;
+                        case 10: // i think it just a padding
+                            break;
+                    }
 
-            trophyListInfo.ListLastUpdateTime = DateTime.Now;
-            TROPUSRReader.Close();
+                } while (TROPUSRReader.BaseStream.Position < TROPUSRReader.BaseStream.Length);
+
+                trophyListInfo.ListLastUpdateTime = DateTime.Now;
+            }
         }
 
         public void PrintState()
@@ -173,51 +165,46 @@ namespace TROPHYParser
 
         public void Save()
         {
-            BigEndianBinaryWriter TROPUSRWriter = new BigEndianBinaryWriter(new FileStream(path + "TROPUSR.DAT", FileMode.Open));
-            TROPUSRWriter.Write(header.StructToBytes());
-            TypeRecord account_id_Record = typeRecordTable[2];
-            TROPUSRWriter.BaseStream.Position = account_id_Record.Offset + 32; // 空行
-            TROPUSRWriter.Write(account_id.ToCharArray()); // 帳號
-
-
-            TypeRecord trophy_id_Record = typeRecordTable[3];
-            TROPUSRWriter.BaseStream.Position = trophy_id_Record.Offset + 16;
-            TROPUSRWriter.Write(trophy_id.ToCharArray()); // 獎杯ID
-            TROPUSRWriter.BaseStream.Position = trophy_id_Record.Offset + 80;
-            //TROPUSRWriter.Write(AchievementRate[0]); // 完成度
-            //TROPUSRWriter.Write(AchievementRate[1]); // 完成度
-            //TROPUSRWriter.Write(AchievementRate[2]); // 完成度
-            //TROPUSRWriter.Write(AchievementRate[3]); // 完成度
-
-
-
-            TypeRecord TrophyType_Record = typeRecordTable[4];
-            TROPUSRWriter.BaseStream.Position = TrophyType_Record.Offset;
-            foreach (TrophyType type in trophyTypeTable)
+            using (var fileStream = new FileStream(Path.Combine(path, TROPUSR_FILE_NAME), FileMode.Open))
+            using (var TROPUSRWriter = new BigEndianBinaryWriter(fileStream))
             {
-                TROPUSRWriter.BaseStream.Position += 16;
-                TROPUSRWriter.Write(type.StructToBytes());
+                TROPUSRWriter.Write(header.StructToBytes());
+                TypeRecord account_id_Record = typeRecordTable[2];
+                TROPUSRWriter.BaseStream.Position = account_id_Record.Offset + 32; // 空行
+                TROPUSRWriter.Write(account_id.ToCharArray()); // 帳號
+
+                TypeRecord trophy_id_Record = typeRecordTable[3];
+                TROPUSRWriter.BaseStream.Position = trophy_id_Record.Offset + 16;
+                TROPUSRWriter.Write(trophy_id.ToCharArray()); // 獎杯ID
+                TROPUSRWriter.BaseStream.Position = trophy_id_Record.Offset + 80;
+
+                TypeRecord TrophyType_Record = typeRecordTable[4];
+                TROPUSRWriter.BaseStream.Position = TrophyType_Record.Offset;
+                foreach (TrophyType type in trophyTypeTable)
+                {
+                    TROPUSRWriter.BaseStream.Position += 16;
+                    TROPUSRWriter.Write(type.StructToBytes());
+                }
+
+                TypeRecord trophyListInfo_Record = typeRecordTable[5];
+                TROPUSRWriter.BaseStream.Position = trophyListInfo_Record.Offset + 16;
+                TROPUSRWriter.Write(trophyListInfo.StructToBytes());
+
+                TypeRecord TrophyTimeInfo_Record = typeRecordTable[6];
+                TROPUSRWriter.BaseStream.Position = TrophyTimeInfo_Record.Offset;
+                foreach (TrophyTimeInfo time in trophyTimeInfoTable)
+                {
+                    TROPUSRWriter.BaseStream.Position += 16;
+                    TROPUSRWriter.Write(time.StructToBytes());
+                }
+
+                TypeRecord unknowType7_Record = typeRecordTable[7];
+                TROPUSRWriter.BaseStream.Position = unknowType7_Record.Offset + 16;
+                TROPUSRWriter.Write(unknowType7.StructToBytes());
+
+                TROPUSRWriter.Flush();
+                TROPUSRWriter.Close();
             }
-
-            TypeRecord trophyListInfo_Record = typeRecordTable[5];
-            TROPUSRWriter.BaseStream.Position = trophyListInfo_Record.Offset + 16;
-            TROPUSRWriter.Write(trophyListInfo.StructToBytes());
-
-
-            TypeRecord TrophyTimeInfo_Record = typeRecordTable[6];
-            TROPUSRWriter.BaseStream.Position = TrophyTimeInfo_Record.Offset;
-            foreach (TrophyTimeInfo time in trophyTimeInfoTable)
-            {
-                TROPUSRWriter.BaseStream.Position += 16;
-                TROPUSRWriter.Write(time.StructToBytes());
-            }
-
-            TypeRecord unknowType7_Record = typeRecordTable[7];
-            TROPUSRWriter.BaseStream.Position = unknowType7_Record.Offset + 16;
-            TROPUSRWriter.Write(unknowType7.StructToBytes());
-
-            TROPUSRWriter.Flush();
-            TROPUSRWriter.Close();
         }
 
         public void UnlockTrophy(int id, DateTime dt)
@@ -237,7 +224,6 @@ namespace TROPHYParser
             if (dt > trophyListInfo.ListLastGetTrophyTime)
             {
                 trophyListInfo.ListLastGetTrophyTime = dt;
-                // trophyListInfo.ListLastUpdateTime = dt;
             }
         }
 
@@ -245,7 +231,7 @@ namespace TROPHYParser
         {
             TrophyTimeInfo tti = trophyTimeInfoTable[id];
             if (tti.IsSync)
-                throw new Exception("此獎杯已同步過，無法上鎖或修改");
+                throw new TrophyAlreadySyncException();
 
             tti.Time = new DateTime(0);
             if (tti.IsGet)

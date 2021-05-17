@@ -6,12 +6,6 @@ using System.Text;
 
 namespace TROPHYParser
 {
-    public class TropTrnsIOException : IOException
-    {
-        public TropTrnsIOException(string message) : base(message) { }
-        public TropTrnsIOException() : base("Cannot Open TROPTRNS.DAT.") { }
-    }
-
     public class TropTrnsAlreadyGotException : Exception
     {
         public TropTrnsAlreadyGotException(string message) : base(message) { }
@@ -99,57 +93,51 @@ namespace TROPHYParser
                 throw new FileNotFoundException("File not found", fileName);
 
             this.path = path;
-            try
+
+            using (var fileStream = new FileStream(fileName, FileMode.Open))
+            using (var TROPTRNSReader = new BigEndianBinaryReader(fileStream))
             {
-                using (var fileStream = new FileStream(fileName, FileMode.Open))
-                using (var TROPTRNSReader = new BigEndianBinaryReader(fileStream))
+                header = TROPTRNSReader.ReadBytes(Marshal.SizeOf(typeof(Header))).ToStruct<Header>();
+                if (header.Magic != 0x0000000100ad548f81)
+                    throw new InvalidTrophyFileException(TROPTRNS_FILE_NAME);
+
+                typeRecordTable = new Dictionary<int, TypeRecord>();
+                for (int i = 0; i < header.UnknowCount; i++)
                 {
-                    header = TROPTRNSReader.ReadBytes(Marshal.SizeOf(typeof(Header))).ToStruct<Header>();
-                    if (header.Magic != 0x0000000100ad548f81)
-                        throw new InvalidTrophyFileException(TROPTRNS_FILE_NAME);
-
-                    typeRecordTable = new Dictionary<int, TypeRecord>();
-                    for (int i = 0; i < header.UnknowCount; i++)
-                    {
-                        TypeRecord TypeRecordTmp = TROPTRNSReader.ReadBytes(Marshal.SizeOf(typeof(TypeRecord))).ToStruct<TypeRecord>();
-                        typeRecordTable.Add(TypeRecordTmp.ID, TypeRecordTmp);
-                    }
-
-                    // Type 2
-                    TypeRecord account_id_Record = typeRecordTable[2];
-                    TROPTRNSReader.BaseStream.Position = account_id_Record.Offset + 32; // 空行
-                    account_id = Encoding.UTF8.GetString(TROPTRNSReader.ReadBytes(16));
-
-                    // Type 3
-                    TypeRecord trophy_id_Record = typeRecordTable[3];
-                    TROPTRNSReader.BaseStream.Position = trophy_id_Record.Offset + 16; // 空行
-                    trophy_id = Encoding.UTF8.GetString(TROPTRNSReader.ReadBytes(16)).Trim('\0');
-                    u1 = TROPTRNSReader.ReadInt32(); // always 00000090
-                    AllGetTrophysCount = TROPTRNSReader.ReadInt32();
-                    AllSyncPSNTrophyCount = TROPTRNSReader.ReadInt32();
-
-                    // Type 4
-                    TypeRecord TrophyInfoRecord = typeRecordTable[4];
-                    TROPTRNSReader.BaseStream.Position = TrophyInfoRecord.Offset; // 空行
-                    int type = TROPTRNSReader.ReadInt32();
-                    int blocksize = TROPTRNSReader.ReadInt32();
-                    int sequenceNumber = TROPTRNSReader.ReadInt32(); // if have more than same type block, it will be used
-                    int unknow = TROPTRNSReader.ReadInt32();
-                    byte[] blockdata = TROPTRNSReader.ReadBytes(blocksize);
-                    trophyInitTime = blockdata.ToStruct<TrophyInitTime>();
-
-
-                    for (int i = 0; i < (AllGetTrophysCount - 1); i++)
-                    {
-                        TROPTRNSReader.BaseStream.Position += 16;
-                        TrophyInfo ti = TROPTRNSReader.ReadBytes(blocksize).ToStruct<TrophyInfo>();
-                        trophyInfoTable.Add(ti);
-                    }
+                    TypeRecord TypeRecordTmp = TROPTRNSReader.ReadBytes(Marshal.SizeOf(typeof(TypeRecord))).ToStruct<TypeRecord>();
+                    typeRecordTable.Add(TypeRecordTmp.ID, TypeRecordTmp);
                 }
-            }
-            catch (IOException)
-            {
-                throw new TropTrnsIOException();
+
+                // Type 2
+                TypeRecord account_id_Record = typeRecordTable[2];
+                TROPTRNSReader.BaseStream.Position = account_id_Record.Offset + 32; // 空行
+                account_id = Encoding.UTF8.GetString(TROPTRNSReader.ReadBytes(16));
+
+                // Type 3
+                TypeRecord trophy_id_Record = typeRecordTable[3];
+                TROPTRNSReader.BaseStream.Position = trophy_id_Record.Offset + 16; // 空行
+                trophy_id = Encoding.UTF8.GetString(TROPTRNSReader.ReadBytes(16)).Trim('\0');
+                u1 = TROPTRNSReader.ReadInt32(); // always 00000090
+                AllGetTrophysCount = TROPTRNSReader.ReadInt32();
+                AllSyncPSNTrophyCount = TROPTRNSReader.ReadInt32();
+
+                // Type 4
+                TypeRecord TrophyInfoRecord = typeRecordTable[4];
+                TROPTRNSReader.BaseStream.Position = TrophyInfoRecord.Offset; // 空行
+                int type = TROPTRNSReader.ReadInt32();
+                int blocksize = TROPTRNSReader.ReadInt32();
+                int sequenceNumber = TROPTRNSReader.ReadInt32(); // if have more than same type block, it will be used
+                int unknow = TROPTRNSReader.ReadInt32();
+                byte[] blockdata = TROPTRNSReader.ReadBytes(blocksize);
+                trophyInitTime = blockdata.ToStruct<TrophyInitTime>();
+
+
+                for (int i = 0; i < (AllGetTrophysCount - 1); i++)
+                {
+                    TROPTRNSReader.BaseStream.Position += 16;
+                    TrophyInfo ti = TROPTRNSReader.ReadBytes(blocksize).ToStruct<TrophyInfo>();
+                    trophyInfoTable.Add(ti);
+                }
             }
         }
 

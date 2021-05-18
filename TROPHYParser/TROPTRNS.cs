@@ -6,7 +6,38 @@ using System.Text;
 
 namespace TROPHYParser
 {
-    public class TROPTRNS {
+    public class TropTrnsAlreadyGotException : Exception
+    {
+        public TropTrnsAlreadyGotException(string message) : base(message) { }
+        public TropTrnsAlreadyGotException() : base("Trophy already got.") { }
+    }
+
+    public class TropTrnsPsnSyncTimeException : Exception
+    {
+        private DateTime psnSyncTime = new DateTime(0);
+        public DateTime PsnSyncTime
+        {
+            get { return psnSyncTime; }
+        }
+
+        public TropTrnsPsnSyncTimeException(string message, DateTime psnSyncTime) : base(message)
+        {
+            this.psnSyncTime = psnSyncTime;
+        }
+        public TropTrnsPsnSyncTimeException(DateTime psnSyncTime) : base(string.Format("The last trophy synchronized with PSN has the following date: {0:dd/MM/yyyy HH:mm:ss}. Select a date greater than this.", psnSyncTime)) { }
+    }
+
+    public class TropTrnsTrophyNotFound : Exception
+    {
+        public TropTrnsTrophyNotFound(string message) : base(message) { }
+        public TropTrnsTrophyNotFound() : base("Trophy ID not found.") { }
+    }
+
+    public class TROPTRNS
+    {
+
+        private const string TROPTRNS_FILE_NAME = "TROPTRNS.DAT";
+
         string path;
         Header header;
         Dictionary<int, TypeRecord> typeRecordTable;
@@ -16,38 +47,63 @@ namespace TROPHYParser
         int u1;
         int AllGetTrophysCount;
         int AllSyncPSNTrophyCount;
+        public DateTime LastSyncTime
+        {
+            get
+            {
+                DateTime aux = new DateTime(2008, 1, 1);
+                foreach (TrophyInfo tropInfo in trophyInfoTable)
+                {
+                    if (tropInfo.IsSync && DateTime.Compare(tropInfo.Time, aux) > 0)
+                    {
+                        aux = tropInfo.Time;
+                    }
+                }
+                return aux;
+            }
+        }
+
+        public DateTime LastTrophyTime
+        {
+            get
+            {
+                DateTime aux = new DateTime(2008, 1, 1);
+                foreach (TrophyInfo tropInfo in trophyInfoTable)
+                {
+                    if (DateTime.Compare(tropInfo.Time, aux) > 0)
+                    {
+                        aux = tropInfo.Time;
+                    }
+                }
+                return aux;
+            }
+        }
+
+
         TrophyInitTime trophyInitTime;
 
-        public TROPTRNS(string path_in) {
+        public TROPTRNS(string path)
+        {
+            if (path == null || path.Trim() == string.Empty)
+                throw new Exception("Path cannot be null!");
 
-            this.path = path_in;
-            BigEndianBinaryReader TROPTRNSReader = null;
-            try {
+            string fileName = Path.Combine(path, TROPTRNS_FILE_NAME);
 
-                if (path == null)
-                    throw new Exception("Path cannot be null!");
+            if (!File.Exists(fileName))
+                throw new FileNotFoundException("File not found", fileName);
 
-                if (!path.EndsWith(@"\"))
-                    path += @"\";
+            this.path = path;
 
-                if (!File.Exists(path + "TROPTRNS.DAT"))
-                    throw new Exception("Cannot find TROPTRNS.DAT.");
-
-                try {
-                    TROPTRNSReader = new BigEndianBinaryReader(new FileStream(path + "TROPTRNS.DAT", FileMode.Open));
-                } catch (IOException) {
-                    throw new Exception("Cannot Open TROPTRNS.DAT.");
-                }
-
+            using (var fileStream = new FileStream(fileName, FileMode.Open))
+            using (var TROPTRNSReader = new BigEndianBinaryReader(fileStream))
+            {
                 header = TROPTRNSReader.ReadBytes(Marshal.SizeOf(typeof(Header))).ToStruct<Header>();
-                if (header.Magic != 0x0000000100ad548f81) {
-                    TROPTRNSReader.Close();
-                    throw new Exception("Not a vaild TROPTRNS.DAT.");
-                }
-
+                if (header.Magic != 0x0000000100ad548f81)
+                    throw new InvalidTrophyFileException(TROPTRNS_FILE_NAME);
 
                 typeRecordTable = new Dictionary<int, TypeRecord>();
-                for (int i = 0; i < header.UnknowCount; i++) {
+                for (int i = 0; i < header.UnknowCount; i++)
+                {
                     TypeRecord TypeRecordTmp = TROPTRNSReader.ReadBytes(Marshal.SizeOf(typeof(TypeRecord))).ToStruct<TypeRecord>();
                     typeRecordTable.Add(TypeRecordTmp.ID, TypeRecordTmp);
                 }
@@ -76,21 +132,22 @@ namespace TROPHYParser
                 trophyInitTime = blockdata.ToStruct<TrophyInitTime>();
 
 
-                for (int i = 0; i < (AllGetTrophysCount - 1); i++) {
+                for (int i = 0; i < (AllGetTrophysCount - 1); i++)
+                {
                     TROPTRNSReader.BaseStream.Position += 16;
                     TrophyInfo ti = TROPTRNSReader.ReadBytes(blocksize).ToStruct<TrophyInfo>();
                     trophyInfoTable.Add(ti);
                 }
-            } finally {
-                if (TROPTRNSReader != null) TROPTRNSReader.Close();
             }
         }
 
-        public void PrintState() {
+        public void PrintState()
+        {
             Console.WriteLine("AllGetTrophysCount:{0}", AllGetTrophysCount);
             Console.WriteLine("Counter: {0}", header.UnknowCount);
             Console.WriteLine("Padding:{0}", header.padding.ToHexString());
-            foreach (KeyValuePair<int, TypeRecord> fk in typeRecordTable) {
+            foreach (KeyValuePair<int, TypeRecord> fk in typeRecordTable)
+            {
                 Console.WriteLine(fk.Value);
             }
             Console.WriteLine("account_id:{0}", account_id);
@@ -99,7 +156,8 @@ namespace TROPHYParser
             Console.WriteLine("Geted Trophys:{0} Sync Trophys:{1} ", AllGetTrophysCount, AllSyncPSNTrophyCount);
 
 
-            for (int i = 0; i < trophyInfoTable.Count; i++) {
+            for (int i = 0; i < trophyInfoTable.Count; i++)
+            {
                 Console.WriteLine("SN:{0}, Trophy ID:{1}, 類型:{2}, 存在:{3}, 取得時間:{4}, 同步:{5} ",
                     trophyInfoTable[i].SequenceNumber, trophyInfoTable[i].TrophyID,
                     trophyInfoTable[i].TrophyType, trophyInfoTable[i].IsExist, trophyInfoTable[i].Time,
@@ -109,78 +167,89 @@ namespace TROPHYParser
 
         }
 
-        public void Save() {
-            BigEndianBinaryWriter TROPTRNSWriter = new BigEndianBinaryWriter(new FileStream(path + "TROPTRNS.DAT", FileMode.Open));
-            TROPTRNSWriter.Write(header.StructToBytes());
-            TypeRecord account_id_Record = typeRecordTable[2];
-            TROPTRNSWriter.BaseStream.Position = account_id_Record.Offset + 32; // 空行
-            TROPTRNSWriter.Write(account_id.ToCharArray());
+        public void Save()
+        {
+            using (var fileStream = new FileStream(Path.Combine(path, TROPTRNS_FILE_NAME), FileMode.Open))
+            using (var TROPTRNSWriter = new BigEndianBinaryWriter(fileStream))
+            {
+                TROPTRNSWriter.Write(header.StructToBytes());
+                TypeRecord account_id_Record = typeRecordTable[2];
+                TROPTRNSWriter.BaseStream.Position = account_id_Record.Offset + 32; // 空行
+                TROPTRNSWriter.Write(account_id.ToCharArray());
 
-            TypeRecord trophy_id_Record = typeRecordTable[3];
-            TROPTRNSWriter.BaseStream.Position = trophy_id_Record.Offset + 16; // 空行
-            TROPTRNSWriter.Write(trophy_id.ToCharArray());
-            TROPTRNSWriter.BaseStream.Position = trophy_id_Record.Offset + 32; // 字串長度不定，直接跳過
-            TROPTRNSWriter.Write(u1);
-            Console.WriteLine(trophyInfoTable.Count);
-            TROPTRNSWriter.Write(trophyInfoTable.Count+1); // AllGetTrophysCount
-            AllSyncPSNTrophyCount = 0;
-            for (int i = 0; i < trophyInfoTable.Count; i++) {
-                if (trophyInfoTable[i].IsSync) {
-                    AllSyncPSNTrophyCount++;
+                TypeRecord trophy_id_Record = typeRecordTable[3];
+                TROPTRNSWriter.BaseStream.Position = trophy_id_Record.Offset + 16; // 空行
+                TROPTRNSWriter.Write(trophy_id.ToCharArray());
+                TROPTRNSWriter.BaseStream.Position = trophy_id_Record.Offset + 32; // 字串長度不定，直接跳過
+                TROPTRNSWriter.Write(u1);
+                Console.WriteLine(trophyInfoTable.Count);
+                TROPTRNSWriter.Write(trophyInfoTable.Count + 1); // AllGetTrophysCount
+                AllSyncPSNTrophyCount = 0;
+                for (int i = 0; i < trophyInfoTable.Count; i++)
+                {
+                    if (trophyInfoTable[i].IsSync)
+                    {
+                        AllSyncPSNTrophyCount++;
+                    }
+                }
+                // AllSyncPSNTrophyCount++;
+                TROPTRNSWriter.Write(AllSyncPSNTrophyCount + 1);
+
+                // Type 4
+                TypeRecord TrophyType_Record = typeRecordTable[4];
+                TROPTRNSWriter.BaseStream.Position = TrophyType_Record.Offset;
+                TROPTRNSWriter.BaseStream.Position += 16;
+                TROPTRNSWriter.Write(trophyInitTime.StructToBytes());
+
+
+                for (int i = 0; i < trophyInfoTable.Count; i++)
+                {
+                    TROPTRNSWriter.BaseStream.Position += 16;
+                    TrophyInfo ti = trophyInfoTable[i];
+                    ti.SequenceNumber = i + 1; // 整理順序
+                                               //if (i == 0) {
+                                               //    ti._unknowInt2 = 0x100000;
+                                               //} else {
+                                               //    ti._unknowInt2 = 0x100000;
+                                               //}
+                    ti._unknowInt3 = 0;
+
+                    trophyInfoTable[i] = ti;
+                    TROPTRNSWriter.Write(trophyInfoTable[i].StructToBytes());
+                }
+
+                byte[] emptyStruct = new byte[Marshal.SizeOf(typeof(TrophyInfo))];
+                Array.Clear(emptyStruct, 0, emptyStruct.Length);
+                TrophyInfo emptyTrophyInfo = emptyStruct.ToStruct<TrophyInfo>();
+                for (int i = trophyInfoTable.Count; i < TrophyType_Record.Size; i++)
+                {
+                    TROPTRNSWriter.BaseStream.Position += 16;
+                    emptyTrophyInfo.SequenceNumber = i + 1;
+                    TROPTRNSWriter.Write(emptyTrophyInfo.StructToBytes());
                 }
             }
-            // AllSyncPSNTrophyCount++;
-            TROPTRNSWriter.Write(AllSyncPSNTrophyCount+1);
-
-            // Type 4
-            TypeRecord TrophyType_Record = typeRecordTable[4];
-            TROPTRNSWriter.BaseStream.Position = TrophyType_Record.Offset;
-            TROPTRNSWriter.BaseStream.Position += 16;
-            TROPTRNSWriter.Write(trophyInitTime.StructToBytes());
-            
-
-            for (int i = 0; i < trophyInfoTable.Count; i++) {
-                TROPTRNSWriter.BaseStream.Position += 16;
-                TrophyInfo ti = trophyInfoTable[i];
-                ti.SequenceNumber = i+1; // 整理順序
-                //if (i == 0) {
-                //    ti._unknowInt2 = 0x100000;
-                //} else {
-                //    ti._unknowInt2 = 0x100000;
-                //}
-                ti._unknowInt3 = 0;
-
-                trophyInfoTable[i] = ti;
-                TROPTRNSWriter.Write(trophyInfoTable[i].StructToBytes());
-            }
-
-            byte[] emptyStruct = new byte[Marshal.SizeOf(typeof(TrophyInfo))];
-            Array.Clear(emptyStruct, 0, emptyStruct.Length);
-            TrophyInfo emptyTrophyInfo = emptyStruct.ToStruct<TrophyInfo>();
-            for (int i = trophyInfoTable.Count; i < TrophyType_Record.Size; i++) {
-                TROPTRNSWriter.BaseStream.Position += 16;
-                emptyTrophyInfo.SequenceNumber = i + 1;
-                TROPTRNSWriter.Write(emptyTrophyInfo.StructToBytes());
-            }
-
-
-            TROPTRNSWriter.Flush();
-            TROPTRNSWriter.Close();
         }
 
-        public void PutTrophy(int id, int TrophyType, DateTime dt) {
+        public void PutTrophy(int id, int TrophyType, DateTime dt)
+        {
             TrophyInfo ti = new TrophyInfo(id, TrophyType, dt);
-            foreach (TrophyInfo titmp in trophyInfoTable) {
-                if (titmp.TrophyID == id) {
-                    throw new Exception("請勿重複取得獎杯。");
+            foreach (TrophyInfo titmp in trophyInfoTable)
+            {
+                if (titmp.TrophyID == id)
+                {
+                    throw new TropTrnsAlreadyGotException();
                 }
             }
 
-            int insertPoint = 0;
-            for (insertPoint = 0; insertPoint < trophyInfoTable.Count; insertPoint++) {
-                if (DateTime.Compare(trophyInfoTable[insertPoint].Time, dt) > 0) {
-                    if (trophyInfoTable[insertPoint].IsSync) {
-                        throw new Exception("該時間點已做過PSN同步，請設定更晚的時間試試。");
+            int insertPoint;
+            for (insertPoint = 0; insertPoint < trophyInfoTable.Count; insertPoint++)
+            {
+                var trophyTime = trophyInfoTable[insertPoint].Time;
+                if (DateTime.Compare(trophyTime, dt) > 0)
+                {
+                    if (trophyInfoTable[insertPoint].IsSync)
+                    {
+                        throw new TropTrnsPsnSyncTimeException(trophyTime);
                     }
                     break;
                 }
@@ -190,80 +259,94 @@ namespace TROPHYParser
             AllGetTrophysCount++;
         }
 
-        public TrophyInfo? PopTrophy() {
+        public TrophyInfo? PopTrophy()
+        {
             if (trophyInfoTable.Count == 0)
                 return null;
             TrophyInfo pop = trophyInfoTable[trophyInfoTable.Count - 1];
-            if (pop.IsSync) {
+            if (pop.IsSync)
+            {
                 return null;
-            } else {
+            }
+            else
+            {
                 trophyInfoTable.RemoveAt(trophyInfoTable.Count - 1);
                 AllGetTrophysCount--;
             }
             return pop;
         }
 
-        public void ChangeTime(int id, DateTime dt) {
-            Nullable<TrophyInfo> ti = null;
-            int originalIndex = 1;
-            for (originalIndex = 0; originalIndex < trophyInfoTable.Count; originalIndex++) {
-                if (trophyInfoTable[originalIndex].TrophyID == id) {
-                    if (trophyInfoTable[originalIndex].IsSync) {
-                        throw new Exception("該獎杯已同步於PSN，為避免錯誤，請勿修改。");
-                    } else {
-                        ti = trophyInfoTable[originalIndex];
-                        trophyInfoTable.RemoveAt(originalIndex);
-                        break;
-                    }
+        public void ChangeTime(int id, DateTime dt)
+        {
+            TrophyInfo? ti = null;
+            int originalIndex;
+            for (originalIndex = 0; originalIndex < trophyInfoTable.Count; originalIndex++)
+            {
+                if (trophyInfoTable[originalIndex].TrophyID == id)
+                {
+                    ti = trophyInfoTable[originalIndex];
+                    break;
                 }
             }
 
-            if (ti == null) {
-                throw new Exception("無此獎杯ID，請先新增獎杯再修改時間。");
-            }
+            if (ti == null)
+                throw new TropTrnsTrophyNotFound();
 
+            if (ti.Value.IsSync)
+                throw new TrophyAlreadySyncException();
 
-            for (int i = 0; i < trophyInfoTable.Count; i++) {
-                if (DateTime.Compare(trophyInfoTable[i].Time, dt) > 0) {
-                    if (trophyInfoTable[i].IsSync) {
-                        trophyInfoTable.Insert(originalIndex, (TrophyInfo)ti);
-                        throw new Exception("該時間點已做過PSN同步，請設定更晚的時間試試。");
-                    } else {
-                        TrophyInfo titmp = (TrophyInfo)ti;
-                        titmp.Time = dt;
-                        trophyInfoTable.Insert(i,titmp);
-                        ti = null;
+            trophyInfoTable.RemoveAt(originalIndex);
+
+            TrophyInfo trophyInfo = (TrophyInfo)ti;
+            bool inserted = false;
+            for (int i = 0; i < trophyInfoTable.Count; i++)
+            {
+                var trophyTime = trophyInfoTable[i].Time;
+                if (DateTime.Compare(trophyTime, dt) > 0)
+                {
+                    if (trophyInfoTable[i].IsSync)
+                    {
+                        trophyInfoTable.Insert(originalIndex, trophyInfo);
+                        throw new TropTrnsPsnSyncTimeException(trophyTime);
                     }
+                    trophyInfo.Time = dt;
+                    trophyInfoTable.Insert(i, trophyInfo);
+                    inserted = true;
                     break;
                 }
             } // Insert Into Table
 
-            if (ti != null) {
-                TrophyInfo titmp = (TrophyInfo)ti;
-                titmp.Time = dt;
-                trophyInfoTable.Add(titmp);
+            if (!inserted)
+            {
+                trophyInfo.Time = dt;
+                trophyInfoTable.Add(trophyInfo);
             }
 
         }
 
-        public void DeleteTrophyByID(int id) {
-            for (int i = 0; i < trophyInfoTable.Count; i++) {
-                if (trophyInfoTable[i].TrophyID == id) {
-                    if (trophyInfoTable[i].IsSync) {
-                        throw new Exception("該獎杯已同步於PSN，為避免錯誤，請勿刪除。");
-                    } else {
-                        trophyInfoTable.RemoveAt(i);
-                        AllGetTrophysCount--;
-                    }
+        public void DeleteTrophyByID(int id)
+        {
+            for (int i = 0; i < trophyInfoTable.Count; i++)
+            {
+                if (trophyInfoTable[i].TrophyID == id)
+                {
+                    if (trophyInfoTable[i].IsSync)
+                        throw new TrophyAlreadySyncException();
+                    trophyInfoTable.RemoveAt(i);
+                    AllGetTrophysCount--;
                 }
             }
         }
 
-        public TrophyInfo? this[int TrophyID] {
-            get {
+        public TrophyInfo? this[int TrophyID]
+        {
+            get
+            {
                 TrophyInfo? ret = null;
-                for (int i = 0; i < trophyInfoTable.Count; i++) {
-                    if (trophyInfoTable[i].TrophyID == TrophyID) {
+                for (int i = 0; i < trophyInfoTable.Count; i++)
+                {
+                    if (trophyInfoTable[i].TrophyID == TrophyID)
+                    {
                         ret = trophyInfoTable[i];
                         break;
                     }
@@ -271,28 +354,20 @@ namespace TROPHYParser
                 return ret;
             }
         }
-
-        public int Count {
-            get {
-                return trophyInfoTable.Count;
-            }
-        }
-
-        public DateTime GetLastTrophyTime() {
-            return trophyInfoTable[trophyInfoTable.Count - 1].Time;
-        }
-
         #region Structs
         [System.Runtime.InteropServices.StructLayoutAttribute(System.Runtime.InteropServices.LayoutKind.Sequential)]
-        public struct Header {
+        public struct Header
+        {
 
             /// long
             public ulong Magic;
 
             /// int
             public int _unknowCount;
-            public int UnknowCount {
-                get {
+            public int UnknowCount
+            {
+                get
+                {
                     return _unknowCount.ChangeEndian();
                 }
             }
@@ -304,57 +379,71 @@ namespace TROPHYParser
         }
 
         [System.Runtime.InteropServices.StructLayoutAttribute(System.Runtime.InteropServices.LayoutKind.Sequential)]
-        public struct TypeRecord {
+        public struct TypeRecord
+        {
 
             /// int
             private int _id;
-            public int ID {
-                get {
+            public int ID
+            {
+                get
+                {
                     return _id.ChangeEndian();
                 }
             }
 
             /// int
             private int _size;
-            public int Size {
-                get {
+            public int Size
+            {
+                get
+                {
                     return _size.ChangeEndian();
                 }
             }
 
             /// int
             public int _unknow3;
-            public int unknow3 {
-                get {
+            public int unknow3
+            {
+                get
+                {
                     return _unknow3.ChangeEndian();
                 }
             }
 
             /// int
             private int _usedTimes;
-            public int UsedTimes {
-                get {
+            public int UsedTimes
+            {
+                get
+                {
                     return _usedTimes.ChangeEndian();
                 }
             }
 
             /// int
             public long _offset;
-            public long Offset {
-                get {
+            public long Offset
+            {
+                get
+                {
                     return _offset.ChangeEndian();
                 }
             }
 
             /// int
             public long _unknow6;
-            public long unknow6 {
-                get {
+            public long unknow6
+            {
+                get
+                {
                     return _unknow6.ChangeEndian();
                 }
             }
 
-            public override string ToString() {
+            public override string ToString()
+            {
                 StringBuilder sb = new StringBuilder();
                 sb.Append("{ID:").Append(ID).Append(", ");
                 sb.Append("Size:").Append(Size).Append(", ");
@@ -367,15 +456,19 @@ namespace TROPHYParser
         }
 
         [System.Runtime.InteropServices.StructLayoutAttribute(System.Runtime.InteropServices.LayoutKind.Sequential)]
-        public struct TrophyInfo {
+        public struct TrophyInfo
+        {
 
             /// int
             private int _sequenceNumber;
-            public int SequenceNumber {
-                get {
+            public int SequenceNumber
+            {
+                get
+                {
                     return _sequenceNumber.ChangeEndian();
                 }
-                set {
+                set
+                {
                     _sequenceNumber = value.ChangeEndian();
                 }
             }
@@ -383,11 +476,14 @@ namespace TROPHYParser
             /// byte[4]
             [System.Runtime.InteropServices.MarshalAsAttribute(System.Runtime.InteropServices.UnmanagedType.ByValArray, SizeConst = 4, ArraySubType = System.Runtime.InteropServices.UnmanagedType.I1)]
             private byte[] _isExist;
-            public bool IsExist {
-                set {
+            public bool IsExist
+            {
+                set
+                {
                     _isExist[3] = (byte)((value) ? 2 : 0);
                 }
-                get {
+                get
+                {
                     return (_isExist[3] == 2) ? true : false;
                 }
             }
@@ -396,11 +492,14 @@ namespace TROPHYParser
             /// byte[4]
             [System.Runtime.InteropServices.MarshalAsAttribute(System.Runtime.InteropServices.UnmanagedType.ByValArray, SizeConst = 4, ArraySubType = System.Runtime.InteropServices.UnmanagedType.I1)]
             private byte[] _syncState;
-            public bool IsSync {
-                set {
+            public bool IsSync
+            {
+                set
+                {
                     _syncState[3] = (byte)((value) ? 1 : 0);
                 }
-                get {
+                get
+                {
                     return (_syncState[3] == 0) ? false : true;
                 }
             }
@@ -415,22 +514,28 @@ namespace TROPHYParser
 
             /// int
             private int _trophyID;
-            public int TrophyID {
-                get {
+            public int TrophyID
+            {
+                get
+                {
                     return _trophyID.ChangeEndian();
                 }
-                set {
+                set
+                {
                     _trophyID = value.ChangeEndian();
                 }
             }
 
             /// int
             private int _trophyType;
-            public int TrophyType {
-                get {
+            public int TrophyType
+            {
+                get
+                {
                     return _trophyType.ChangeEndian();
                 }
-                set {
+                set
+                {
                     _trophyType = value.ChangeEndian();
                 }
             }
@@ -445,15 +550,21 @@ namespace TROPHYParser
             /// byte[16]
             [System.Runtime.InteropServices.MarshalAsAttribute(System.Runtime.InteropServices.UnmanagedType.ByValArray, SizeConst = 16, ArraySubType = System.Runtime.InteropServices.UnmanagedType.I1)]
             private byte[] _getTime;
-            public DateTime Time {
-                get {
+            public DateTime Time
+            {
+                get
+                {
                     DateTime dt = new DateTime(BitConverter.ToInt64(_getTime, 0).ChangeEndian() * 10);
                     return dt.AddHours(TimeZoneInfo.Local.BaseUtcOffset.Hours);
                 }
-                set {
-                    if (value.Ticks == 0) {
+                set
+                {
+                    if (value.Ticks == 0)
+                    {
                         Array.Clear(_getTime, 0, 16);
-                    } else {
+                    }
+                    else
+                    {
                         long tmp = value.AddHours(-TimeZoneInfo.Local.BaseUtcOffset.Hours).Ticks;
                         Array.Copy(BitConverter.GetBytes((tmp / 10).ChangeEndian()), 0, _getTime, 0, 8);
                         Array.Copy(BitConverter.GetBytes((tmp / 10).ChangeEndian()), 0, _getTime, 8, 8);
@@ -465,14 +576,16 @@ namespace TROPHYParser
             [System.Runtime.InteropServices.MarshalAsAttribute(System.Runtime.InteropServices.UnmanagedType.ByValArray, SizeConst = 96, ArraySubType = System.Runtime.InteropServices.UnmanagedType.I1)]
             public byte[] padding2;
 
-            public override string ToString() {
+            public override string ToString()
+            {
                 StringBuilder sb = new StringBuilder();
                 sb.Append("[").Append("SequenceNumber:").Append(SequenceNumber).Append(", ");
                 sb.Append("GetState:").Append(IsExist).Append("]");
                 return sb.ToString();
             }
 
-            public TrophyInfo(int id, int TrophyType, DateTime dt) {
+            public TrophyInfo(int id, int TrophyType, DateTime dt)
+            {
                 _sequenceNumber = 0;
                 _isExist = new byte[4];
                 _getTime = new byte[16];
@@ -490,7 +603,8 @@ namespace TROPHYParser
         }
 
         [System.Runtime.InteropServices.StructLayoutAttribute(System.Runtime.InteropServices.LayoutKind.Sequential)]
-        public struct TrophyInitTime {
+        public struct TrophyInitTime
+        {
 
             /// int
             public int u1;

@@ -37,6 +37,7 @@ namespace TROPHYParser
     {
 
         private const string TROPTRNS_FILE_NAME = "TROPTRNS.DAT";
+        private bool isRpcs3Format;
 
         string path;
         Header header;
@@ -82,8 +83,13 @@ namespace TROPHYParser
 
         TrophyInitTime trophyInitTime;
 
-        public TROPTRNS(string path)
+        public TROPTRNS(string path, bool isRpcs3Format)
         {
+            if (isRpcs3Format)
+            {
+                this.isRpcs3Format = isRpcs3Format;
+                return;
+            }
             if (path == null || path.Trim() == string.Empty)
                 throw new Exception("Path cannot be null!");
 
@@ -169,6 +175,7 @@ namespace TROPHYParser
 
         public void Save()
         {
+            if (isRpcs3Format) return;
             using (var fileStream = new FileStream(Path.Combine(path, TROPTRNS_FILE_NAME), FileMode.Open))
             using (var TROPTRNSWriter = new BigEndianBinaryWriter(fileStream))
             {

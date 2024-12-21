@@ -10,7 +10,6 @@ namespace TROPHYParser
     {
         private const string TROPCONF_FILE_NAME = "TROPCONF.SFM";
 
-        int startByte = 0x40;
         string path;
         string trophyconf_version;
         public string npcommid;
@@ -36,7 +35,7 @@ namespace TROPHYParser
                 return trophys[index];
             }
         }
-        public TROPCONF(string path)
+        public TROPCONF(string path, bool isRpcs3Format)
         {
             if (path == null || path.Trim() == string.Empty)
                 throw new Exception("Path cannot be null!");
@@ -49,6 +48,7 @@ namespace TROPHYParser
             this.path = path;
 
             byte[] data = File.ReadAllBytes(fileName);
+            int startByte = isRpcs3Format ? 0x00 : 0x40;
             data = data.SubArray(startByte, data.Length - startByte);
 
             XmlDocument xmldoc = new XmlDocument();

@@ -9,6 +9,7 @@ namespace TROPHYParser
     public class TROPUSR
     {
         private const string TROPUSR_FILE_NAME = "TROPUSR.DAT";
+        private bool isRpcs3Format;
 
         string path;
         Header header;
@@ -55,7 +56,7 @@ namespace TROPHYParser
             }
         }
 
-        public TROPUSR(string path)
+        public TROPUSR(string path, bool isRpcs3Format)
         {
             if (path == null || path.Trim() == string.Empty)
                 throw new Exception("Path cannot be null!");
@@ -66,6 +67,7 @@ namespace TROPHYParser
                 throw new FileNotFoundException("File not found", fileName);
 
             this.path = path;
+            this.isRpcs3Format = isRpcs3Format;
 
             using (var fileStream = new FileStream(fileName, FileMode.Open))
             using (var TROPUSRReader = new BigEndianBinaryReader(fileStream))
@@ -135,6 +137,8 @@ namespace TROPHYParser
 
                 } while (TROPUSRReader.BaseStream.Position < TROPUSRReader.BaseStream.Length);
 
+                if (this.isRpcs3Format)
+                    trophyListInfo = new byte[208].ToStruct<TrophyListInfo>();
                 trophyListInfo.ListLastUpdateTime = DateTime.Now;
             }
         }
@@ -169,14 +173,17 @@ namespace TROPHYParser
             using (var TROPUSRWriter = new BigEndianBinaryWriter(fileStream))
             {
                 TROPUSRWriter.Write(header.StructToBytes());
-                TypeRecord account_id_Record = typeRecordTable[2];
-                TROPUSRWriter.BaseStream.Position = account_id_Record.Offset + 32; // 空行
-                TROPUSRWriter.Write(account_id.ToCharArray()); // 帳號
+                if (!isRpcs3Format)
+                {
+                    TypeRecord account_id_Record = typeRecordTable[2];
+                    TROPUSRWriter.BaseStream.Position = account_id_Record.Offset + 32; // 空行
+                    TROPUSRWriter.Write(account_id.ToCharArray()); // 帳號
 
-                TypeRecord trophy_id_Record = typeRecordTable[3];
-                TROPUSRWriter.BaseStream.Position = trophy_id_Record.Offset + 16;
-                TROPUSRWriter.Write(trophy_id.ToCharArray()); // 獎杯ID
-                TROPUSRWriter.BaseStream.Position = trophy_id_Record.Offset + 80;
+                    TypeRecord trophy_id_Record = typeRecordTable[3];
+                    TROPUSRWriter.BaseStream.Position = trophy_id_Record.Offset + 16;
+                    TROPUSRWriter.Write(trophy_id.ToCharArray()); // 獎杯ID
+                    TROPUSRWriter.BaseStream.Position = trophy_id_Record.Offset + 80;
+                }
 
                 TypeRecord TrophyType_Record = typeRecordTable[4];
                 TROPUSRWriter.BaseStream.Position = TrophyType_Record.Offset;
@@ -186,9 +193,12 @@ namespace TROPHYParser
                     TROPUSRWriter.Write(type.StructToBytes());
                 }
 
-                TypeRecord trophyListInfo_Record = typeRecordTable[5];
-                TROPUSRWriter.BaseStream.Position = trophyListInfo_Record.Offset + 16;
-                TROPUSRWriter.Write(trophyListInfo.StructToBytes());
+                if (!isRpcs3Format)
+                {
+                    TypeRecord trophyListInfo_Record = typeRecordTable[5];
+                    TROPUSRWriter.BaseStream.Position = trophyListInfo_Record.Offset + 16;
+                    TROPUSRWriter.Write(trophyListInfo.StructToBytes());
+                }
 
                 TypeRecord TrophyTimeInfo_Record = typeRecordTable[6];
                 TROPUSRWriter.BaseStream.Position = TrophyTimeInfo_Record.Offset;
@@ -198,9 +208,12 @@ namespace TROPHYParser
                     TROPUSRWriter.Write(time.StructToBytes());
                 }
 
-                TypeRecord unknowType7_Record = typeRecordTable[7];
-                TROPUSRWriter.BaseStream.Position = unknowType7_Record.Offset + 16;
-                TROPUSRWriter.Write(unknowType7.StructToBytes());
+                if (!isRpcs3Format)
+                {
+                    TypeRecord unknowType7_Record = typeRecordTable[7];
+                    TROPUSRWriter.BaseStream.Position = unknowType7_Record.Offset + 16;
+                    TROPUSRWriter.Write(unknowType7.StructToBytes());
+                }
 
                 TROPUSRWriter.Flush();
                 TROPUSRWriter.Close();
